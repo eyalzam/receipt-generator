@@ -1,0 +1,303 @@
+{% extends "base.html" %}
+{% block title %}קבלה מהודעה{% endblock %}
+
+{% block content %}
+<style>
+    .gmail-list { list-style: none; padding: 0; }
+    .gmail-item { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-bottom: 1px solid #f0f0f0; cursor: pointer; transition: background 0.15s; }
+    .gmail-item:hover { background: #f0f7ff; }
+    .gmail-item .subject { font-weight: 600; font-size: 14px; flex: 1; }
+    .gmail-item .meta { font-size: 12px; color: #888; white-space: nowrap; }
+    .gmail-item .attachment { font-size: 12px; color: #8e44ad; font-weight: 600; }
+    .gmail-loading { text-align: center; padding: 30px; color: #999; font-size: 14px; }
+    .gmail-error { color: #e74c3c; padding: 12px; font-size: 14px; }
+    .tab-bar { display: flex; gap: 0; margin-bottom: 0; }
+    .tab-btn { padding: 10px 22px; border: none; background: #e8e8e8; cursor: pointer; font-family: inherit; font-size: 14px; font-weight: 600; color: #666; border-radius: 8px 8px 0 0; }
+    .tab-btn.active { background: white; color: #2c3e50; box-shadow: 0 -2px 0 #3498db inset; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+</style>
+
+<div class="card" style="padding-bottom:0;">
+    <div class="tab-bar">
+        <button class="tab-btn active" onclick="switchTab('gmail')">Gmail</button>
+        <button class="tab-btn" onclick="switchTab('paste')">הדבק הודעה</button>
+    </div>
+</div>
+
+<!-- Gmail Tab -->
+<div class="card tab-content active" id="tab-gmail" style="border-top-right-radius:0;">
+    <h2>אימיילים עם קבלות (600xx)</h2>
+    <p style="color:#666; font-size:14px; margin-bottom:12px;">מחפש במייל קבלות מצורפות בפורמט receipt-600xx.pdf</p>
+    <div style="display:flex; gap:10px; margin-bottom:16px;">
+        <button class="btn btn-primary" onclick="fetchGmail()" id="fetch_btn">חפש בGmail</button>
+        <span id="gmail_status" style="font-size:13px; color:#888; align-self:center;"></span>
+    </div>
+    <div id="gmail_results">
+        <p style="color:#999; font-size:14px;">לחץ "חפש בGmail" כדי לטעון אימיילים</p>
+    </div>
+</div>
+
+<!-- Paste Tab -->
+<div class="card tab-content" id="tab-paste">
+    <h2>הפקת קבלה מהודעה</h2>
+    <p style="color:#666; font-size:14px; margin-bottom:16px;">הדבק הודעת WhatsApp או גוף אימייל</p>
+    <div class="form-group">
+        <label>הדבק הודעה כאן</label>
+        <textarea id="message_input" rows="6" placeholder="הדבק כאן הודעת WhatsApp או אימייל..." oninput="parseMessage()"></textarea>
+    </div>
+    <div id="parsed_preview" style="display:none; background:#f8f9fa; border-radius:8px; padding:16px; margin-bottom:20px; border:1.5px solid #e0e0e0;">
+        <h3 style="font-size:15px; color:#2c3e50; margin-bottom:12px; border-bottom:1px solid #ddd; padding-bottom:8px;">זוהה אוטומטית:</h3>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; font-size:14px;">
+            <div><strong>סכום:</strong> <span id="p_amount" style="color:#27ae60; font-weight:700;">-</span></div>
+            <div><strong>חודש:</strong> <span id="p_month">-</span></div>
+            <div><strong>לקוח:</strong> <span id="p_client">-</span></div>
+            <div><strong>אימייל:</strong> <span id="p_email" dir="ltr">-</span></div>
+        </div>
+    </div>
+</div>
+
+<!-- Email detail overlay -->
+<div class="card" id="email_detail_card" style="display:none; border: 2px solid #3498db;">
+    <h2 id="email_detail_subject" style="font-size:16px;"></h2>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; font-size:14px; margin-bottom:12px; background:#f8f9fa; padding:12px; border-radius:8px;">
+        <div><strong>סכום:</strong> <span id="ed_amount" style="color:#27ae60; font-weight:700;">-</span></div>
+        <div><strong>חודש:</strong> <span id="ed_month">-</span></div>
+        <div><strong>לקוח:</strong> <span id="ed_client">-</span></div>
+        <div><strong>קובץ:</strong> <span id="ed_attachment" style="color:#8e44ad;">-</span></div>
+    </div>
+    <div class="form-group">
+        <label>גוף ההודעה</label>
+        <textarea id="ed_body" rows="4" readonly style="background:#f8f9fa;"></textarea>
+    </div>
+    <div style="display:flex; gap:10px;">
+        <button class="btn btn-primary" onclick="useEmailForReceipt()">השתמש להפקת קבלה</button>
+        <a id="ed_download_link" href="#" class="btn btn-success" target="_blank">הורד PDF</a>
+        <button class="btn btn-secondary" onclick="document.getElementById('email_detail_card').style.display='none'">סגור</button>
+    </div>
+</div>
+
+<!-- Receipt Form -->
+<div class="card" id="receipt_form_card" style="display:none;">
+    <h2>השלמת פרטי הקבלה</h2>
+    <form method="POST" action="{{ url_for('create_receipt') }}">
+        <input type="hidden" id="issuer_hebrew_name" value="{{ issuer_hebrew_name or '' }}">
+        <div class="form-row">
+            <div class="form-group">
+                <label>לקוח</label>
+                <select name="client_id" id="client_id" required onchange="updateSubject()">
+                    <option value="">-- בחר לקוח --</option>
+                    {% for client in clients %}
+                        <option value="{{ client.id }}" data-nickname="{{ client.nickname or '' }}">{{ client.name }} ({{ client.company_id }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>תאריך</label>
+                <input type="date" name="date" value="{{ today }}" required>
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label>סכום (₪)</label>
+                <input type="number" name="amount" id="amount" step="0.01" min="0" required>
+            </div>
+            <div class="form-group">
+                <label>עבור חודש</label>
+                <input type="month" name="for_month" id="for_month" onchange="updateSubject()">
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label>מספר קבלה</label>
+                <input type="number" name="receipt_number" id="receipt_number" value="{{ next_number }}" readonly>
+            </div>
+            <div class="form-group">
+                <label>כותרת (נושא האימייל)</label>
+                <input type="text" name="email_subject" id="email_subject" dir="rtl">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>הערות</label>
+            <textarea name="notes" id="notes" rows="4"></textarea>
+        </div>
+
+        <div style="display:flex; gap:10px;">
+            <button type="submit" class="btn btn-primary">הפק קבלה ושמור PDF</button>
+        </div>
+    </form>
+</div>
+
+<script>
+const HEBREW_MONTHS = {
+    1:'ינואר', 2:'פברואר', 3:'מרץ', 4:'אפריל',
+    5:'מאי', 6:'יוני', 7:'יולי', 8:'אוגוסט',
+    9:'ספטמבר', 10:'אוקטובר', 11:'נובמבר', 12:'דצמבר'
+};
+
+let currentEmailData = null;
+let parseTimeout = null;
+
+function switchTab(tab) {
+    document.querySelectorAll('.tab-btn').forEach((b, i) => {
+        b.classList.toggle('active', (tab === 'gmail' && i === 0) || (tab === 'paste' && i === 1));
+    });
+    document.getElementById('tab-gmail').classList.toggle('active', tab === 'gmail');
+    document.getElementById('tab-paste').classList.toggle('active', tab === 'paste');
+}
+
+function fetchGmail() {
+    const btn = document.getElementById('fetch_btn');
+    const status = document.getElementById('gmail_status');
+    btn.disabled = true;
+    btn.textContent = 'מחפש...';
+    status.textContent = '';
+
+    fetch('/api/gmail/list')
+    .then(r => r.json())
+    .then(data => {
+        btn.disabled = false;
+        btn.textContent = 'חפש בGmail';
+        if (data.error) {
+            document.getElementById('gmail_results').innerHTML = '<p class="gmail-error">' + data.error + '</p>';
+            return;
+        }
+        if (!data.emails.length) {
+            document.getElementById('gmail_results').innerHTML = '<p style="color:#999;">לא נמצאו אימיילים עם קבלות 600xx</p>';
+            return;
+        }
+        status.textContent = data.emails.length + ' אימיילים נמצאו';
+        let html = '<ul class="gmail-list">';
+        data.emails.forEach(e => {
+            html += `<li class="gmail-item" onclick="loadEmail('${e.id}')">
+                <span class="subject">${e.subject}</span>
+                <span class="attachment">${e.attachment || ''}</span>
+                <span class="meta">${e.date_short || ''}</span>
+            </li>`;
+        });
+        html += '</ul>';
+        document.getElementById('gmail_results').innerHTML = html;
+    })
+    .catch(err => {
+        btn.disabled = false;
+        btn.textContent = 'חפש בGmail';
+        document.getElementById('gmail_results').innerHTML = '<p class="gmail-error">שגיאה: ' + err + '</p>';
+    });
+}
+
+function loadEmail(emailId) {
+    document.getElementById('gmail_status').textContent = 'טוען אימייל...';
+    fetch('/api/gmail/read/' + emailId)
+    .then(r => r.json())
+    .then(data => {
+        document.getElementById('gmail_status').textContent = '';
+        if (data.error) {
+            alert('שגיאה: ' + data.error);
+            return;
+        }
+        currentEmailData = data;
+        const card = document.getElementById('email_detail_card');
+        card.style.display = 'block';
+        document.getElementById('email_detail_subject').textContent = data.subject;
+        document.getElementById('ed_body').value = data.body;
+        document.getElementById('ed_attachment').textContent = data.attachment_name || 'אין';
+
+        const p = data.parsed;
+        document.getElementById('ed_amount').textContent = p.amount ? '₪' + p.amount.toFixed(2) : 'לא זוהה';
+        if (p.for_month) {
+            const parts = p.for_month.split('-');
+            document.getElementById('ed_month').textContent = (HEBREW_MONTHS[parseInt(parts[1])] || '') + ' ' + parts[0];
+        } else {
+            document.getElementById('ed_month').textContent = 'לא זוהה';
+        }
+        document.getElementById('ed_client').textContent = p.client_name || 'לא זוהה';
+
+        const dl = document.getElementById('ed_download_link');
+        if (data.has_attachment) {
+            dl.href = '/api/gmail/attachment/' + emailId;
+            dl.style.display = '';
+        } else {
+            dl.style.display = 'none';
+        }
+
+        card.scrollIntoView({behavior: 'smooth'});
+    });
+}
+
+function useEmailForReceipt() {
+    if (!currentEmailData) return;
+    const p = currentEmailData.parsed;
+    document.getElementById('receipt_form_card').style.display = 'block';
+    if (p.amount) document.getElementById('amount').value = p.amount;
+    if (p.for_month) document.getElementById('for_month').value = p.for_month;
+    if (p.client_id) document.getElementById('client_id').value = p.client_id;
+    document.getElementById('notes').value = currentEmailData.body;
+    document.getElementById('email_subject').value = currentEmailData.subject;
+    updateSubject();
+    document.getElementById('receipt_form_card').scrollIntoView({behavior: 'smooth'});
+}
+
+function parseMessage() {
+    clearTimeout(parseTimeout);
+    parseTimeout = setTimeout(doParseMessage, 400);
+}
+
+function doParseMessage() {
+    const text = document.getElementById('message_input').value.trim();
+    if (!text) {
+        document.getElementById('parsed_preview').style.display = 'none';
+        document.getElementById('receipt_form_card').style.display = 'none';
+        return;
+    }
+    fetch('/api/parse-message', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({text: text})
+    })
+    .then(r => r.json())
+    .then(data => {
+        document.getElementById('parsed_preview').style.display = 'block';
+        document.getElementById('receipt_form_card').style.display = 'block';
+        document.getElementById('p_amount').textContent = data.amount ? '₪' + data.amount.toFixed(2) : 'לא זוהה';
+        document.getElementById('p_amount').style.color = data.amount ? '#27ae60' : '#e74c3c';
+        if (data.for_month) {
+            const parts = data.for_month.split('-');
+            document.getElementById('p_month').textContent = (HEBREW_MONTHS[parseInt(parts[1])] || '') + ' ' + parts[0];
+        } else {
+            document.getElementById('p_month').textContent = 'לא זוהה';
+        }
+        document.getElementById('p_client').textContent = data.client_name || 'לא זוהה';
+        document.getElementById('p_client').style.color = data.client_name ? '#2c3e50' : '#e67e22';
+        document.getElementById('p_email').textContent = data.send_to_email || 'לא זוהה';
+        if (data.amount) document.getElementById('amount').value = data.amount;
+        if (data.for_month) document.getElementById('for_month').value = data.for_month;
+        if (data.client_id) document.getElementById('client_id').value = data.client_id;
+        if (data.description) document.getElementById('notes').value = data.description;
+        updateSubject();
+    });
+}
+
+function updateSubject() {
+    const sel = document.getElementById('client_id');
+    const monthInput = document.getElementById('for_month');
+    const subjectInput = document.getElementById('email_subject');
+    const opt = sel.options[sel.selectedIndex];
+    const nickname = opt ? (opt.dataset.nickname || '') : '';
+    const monthVal = monthInput.value;
+    let monthHeb = '';
+    if (monthVal) {
+        const parts = monthVal.split('-');
+        monthHeb = (HEBREW_MONTHS[parseInt(parts[1])] || '') + ' ' + parts[0];
+    }
+    const issuerName = document.getElementById('issuer_hebrew_name').value;
+    let parts = ['שכר'];
+    if (nickname) parts.push(nickname);
+    if (monthHeb) parts.push(monthHeb);
+    if (issuerName) parts.push('- ' + issuerName);
+    subjectInput.value = parts.join(' ');
+}
+</script>
+{% endblock %}

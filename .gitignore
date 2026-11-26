@@ -1,0 +1,18 @@
+# Python
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+# Local databases / business data (do not publish)
+*.db
+*.db-shm
+*.db-wal
+*.db.bak
+
+# Secrets / local env
+.env
+instance/
+
+# OS
+.DS_Store

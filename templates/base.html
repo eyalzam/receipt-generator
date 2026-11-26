@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}קבלות{% endblock %} - מחולל קבלות</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: #f0f2f5;
+            color: #2c3e50;
+            line-height: 1.6;
+            direction: rtl;
+        }
+
+        .navbar {
+            background: #2c3e50;
+            padding: 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+        }
+        .navbar-inner {
+            max-width: 900px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            gap: 0;
+        }
+        .navbar a {
+            color: #ecf0f1;
+            text-decoration: none;
+            padding: 14px 22px;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background 0.2s;
+            display: block;
+        }
+        .navbar a:hover, .navbar a.active {
+            background: #34495e;
+        }
+        .navbar .brand {
+            font-weight: 700;
+            font-size: 16px;
+            padding-left: 30px;
+            color: #3498db;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 24px auto;
+            padding: 0 16px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+            padding: 28px;
+            margin-bottom: 20px;
+        }
+        .card h2 {
+            font-size: 20px;
+            margin-bottom: 20px;
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+        .form-group label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 6px;
+            font-size: 14px;
+            color: #555;
+        }
+        .form-group input, .form-group select, .form-group textarea {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1.5px solid #ddd;
+            border-radius: 8px;
+            font-size: 15px;
+            font-family: inherit;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            direction: rtl;
+        }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 0 3px rgba(52,152,219,0.12);
+        }
+        .form-group textarea { resize: vertical; min-height: 80px; }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        .form-row-3 {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 16px;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+            text-decoration: none;
+        }
+        .btn-primary {
+            background: #3498db;
+            color: white;
+        }
+        .btn-primary:hover { background: #2980b9; }
+        .btn-success {
+            background: #27ae60;
+            color: white;
+        }
+        .btn-success:hover { background: #219a52; }
+        .btn-secondary {
+            background: #95a5a6;
+            color: white;
+        }
+        .btn-secondary:hover { background: #7f8c8d; }
+        .btn-sm {
+            padding: 6px 14px;
+            font-size: 13px;
+        }
+
+        .checkbox-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .checkbox-row input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+        }
+        .checkbox-row label {
+            margin: 0;
+            font-weight: 500;
+        }
+
+        .table-input {
+            border: 1px solid #ddd;
+            padding: 6px 10px;
+            border-radius: 6px;
+            width: 100%;
+            font-size: 13px;
+            font-family: inherit;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th {
+            background: #f8f9fa;
+            padding: 10px 14px;
+            text-align: right;
+            font-size: 13px;
+            color: #6c757d;
+            border-bottom: 2px solid #dee2e6;
+        }
+        td {
+            padding: 10px 14px;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 14px;
+        }
+        tr:hover td { background: #f8f9fb; }
+
+        .flash {
+            padding: 12px 18px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .flash-success { background: #d5f5e3; color: #1e8449; }
+        .flash-error { background: #fadbd8; color: #c0392b; }
+
+        .amount { font-weight: 700; color: #27ae60; direction: ltr; }
+
+        .actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+        .btn-email { background: #8e44ad; color: white; }
+        .btn-email:hover { background: #7d3c98; }
+
+        .badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+        .badge-success { background: #d5f5e3; color: #1e8449; }
+        .badge-pending { background: #f0f0f0; color: #999; }
+
+        .navbar-end { margin-right: auto; display: flex; align-items: center; gap: 0; }
+        .navbar-end .user-info { color: #95a5a6; font-size: 13px; padding: 0 14px; }
+        .navbar-end a { color: #e74c3c; }
+
+        @media (max-width: 600px) {
+            .form-row, .form-row-3 { grid-template-columns: 1fr; }
+            .container { padding: 0 10px; }
+            .card { padding: 18px; }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="navbar-inner">
+            <a href="{{ url_for('index') }}" class="brand">מחולל קבלות</a>
+            <a href="{{ url_for('index') }}" class="{% if request.endpoint == 'index' %}active{% endif %}">קבלה חדשה</a>
+            <a href="{{ url_for('from_message_page') }}" class="{% if request.endpoint == 'from_message_page' %}active{% endif %}">מהודעה</a>
+            <a href="{{ url_for('clients_page') }}" class="{% if request.endpoint == 'clients_page' %}active{% endif %}">לקוחות</a>
+            <a href="{{ url_for('settings_page') }}" class="{% if request.endpoint == 'settings_page' %}active{% endif %}">הגדרות</a>
+            {% if current_user %}
+            <div class="navbar-end">
+                <span class="user-info">{{ current_user.display_name or current_user.username }}</span>
+                <a href="{{ url_for('logout') }}">יציאה</a>
+            </div>
+            {% endif %}
+        </div>
+    </nav>
+
+    <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% for category, message in messages %}
+                <div class="flash flash-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </div>
+</body>
+</html>
